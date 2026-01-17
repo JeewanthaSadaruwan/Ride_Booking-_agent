@@ -1,0 +1,51 @@
+vehicle_id,type,capacity,features,current_location,status,license_plate,year,make,model
+SLV001,sedan,4,luggage_space;child_seat,Colombo Fort,available,WP CAA-4821,2022,Toyota,Allion
+SLV002,suv,5,luggage_space;pet_friendly,Nugegoda,on_trip,WP CAB-1937,2021,Honda,Vezel
+SLV003,van,7,luggage_space;child_seat;wifi,Katunayake (BIA),available,WP CAG-7750,2020,Toyota,KDH (Hiace)
+SLV004,luxury,4,wifi,Colombo 07 (Cinnamon Gardens),available,WP CAH-2406,2023,Mercedes-Benz,E-Class
+SLV005,accessible,4,wheelchair_accessible;luggage_space,Dehiwala,available,WP CAJ-6098,2018,Nissan,NV200
+SLV006,sedan,4,pet_friendly;luggage_space,Kandy,available,CP CAA-5312,2020,Toyota,Axio
+SLV007,suv,6,luggage_space;child_seat;pet_friendly,Negombo,on_trip,WP CAK-1184,2022,Nissan,X-Trail
+SLV008,luxury,4,wifi;child_seat,Rajagiriya,available,WP CAL-9021,2024,BMW,5 Series
+SLV009,van,8,luggage_space;wifi;child_seat,Galle,maintenance,SP CAA-4479,2017,Toyota,KDH (Hiace)
+SLV010,sedan,2,wifi,Malabe,available,WP CAM-6603,2021,Suzuki,Wagon R
+SLV011,accessible,6,wheelchair_accessible;wifi;luggage_space,Katunayake (BIA),available,WP CAN-2745,2021,Toyota,KDH (Hiace)
+SLV012,suv,5,luggage_space;wifi;child_seat,Kurunegala,available,NW CAA-8157,2023,Mitsubishi,Outlander
+SLV013,sedan,4,child_seat,Jaffna,on_trip,NP CAA-3920,2018,Nissan,Bluebird Sylphy
+SLV014,luxury,4,wifi;pet_friendly,Colombo 03 (Kollupitiya),available,WP CAP-5638,2022,Audi,A6
+SLV015,van,7,luggage_space;pet_friendly;wifi;child_seat,Matara,available,SP CAB-1076,2020,Kia,Carnival
+SLV016,sedan,4,luggage_space;wifi,Colombo 02 (Slave Island),available,WP CAQ-8912,2023,Honda,Civic
+SLV017,suv,6,luggage_space;child_seat;wifi,Moratuwa,available,WP CAR-3345,2022,Toyota,Fortuner
+SLV018,sedan,4,pet_friendly,Mount Lavinia,available,WP CAS-6677,2021,Nissan,Sunny
+SLV019,luxury,4,wifi;luggage_space,Colombo 04 (Bambalapitiya),available,WP CAT-9034,2024,Lexus,ES 300h
+SLV020,van,8,luggage_space;child_seat;wifi,Anuradhapura,on_trip,NC CAA-2156,2019,Toyota,KDH (Hiace)
+SLV021,sedan,4,child_seat;luggage_space,Panadura,available,WP CAU-4523,2020,Toyota,Premio
+SLV022,suv,5,luggage_space;pet_friendly;wifi,Trincomalee,available,EC CAA-7890,2022,Mitsubishi,Montero Sport
+SLV023,accessible,5,wheelchair_accessible;wifi;luggage_space,Colombo 05 (Narahenpita),available,WP CAV-1289,2023,Toyota,Alphard
+SLV024,sedan,4,wifi,Battaramulla,available,WP CAW-5612,2021,Mazda,Axela
+SLV025,luxury,4,wifi;child_seat;pet_friendly,Colombo 06 (Wellawatte),available,WP CAX-8734,2023,Jaguar,XF
+SLV026,van,7,luggage_space;child_seat;wifi;pet_friendly,Chilaw,available,NW CAB-9045,2020,Nissan,Caravan
+SLV027,sedan,4,luggage_space,Ratnapura,available,SP CAC-3456,2019,Toyota,Corolla
+SLV028,suv,6,luggage_space;child_seat;wifi,Nuwara Eliya,available,CP CAB-6789,2022,Land Rover,Discovery Sport
+SLV029,sedan,2,wifi,Kottawa,available,WP CAY-2301,2023,Suzuki,Swift
+SLV030,luxury,4,wifi;luggage_space,Colombo 08 (Borella),available,WP CAZ-7845,2024,Tesla,Model 3
+SLV031,accessible,6,wheelchair_accessible;luggage_space;child_seat,Maharagama,available,WP CBA-4512,2022,Nissan,NV350
+SLV032,van,8,luggage_space;wifi;child_seat,Jaffna,available,NP CAB-8923,2018,Toyota,KDH (Hiace)
+SLV033,sedan,4,pet_friendly;wifi,Homagama,available,WP CBB-1678,2021,Honda,Grace
+SLV034,suv,5,luggage_space;child_seat,Badulla,available,UP CAA-5634,2023,Nissan,Patrol
+SLV035,luxury,4,wifi;child_seat,Kandy,on_trip,CP CAC-9012,2024,BMW,7 Series
+SLV036,sedan,4,luggage_space,Kalutara,available,WP CBC-3489,2020,Toyota,Yaris
+SLV037,van,7,luggage_space;child_seat;wifi,Ampara,available,EC CAB-7123,2021,Kia,Grand Carnival
+SLV038,suv,6,luggage_space;pet_friendly;wifi;child_seat,Hambantota,available,SP CAD-4590,2022,Toyota,Land Cruiser Prado
+SLV039,accessible,4,wheelchair_accessible;luggage_space,Kiribathgoda,available,WP CBD-8156,2023,Honda,Freed
+SLV040,sedan,4,child_seat,Ja-Ela,available,WP CBE-2367,2021,Nissan,Tiida
+SLV041,luxury,4,wifi;pet_friendly;luggage_space,Colombo 09 (Dematagoda),available,WP CBF-9678,2024,Audi,A8
+SLV042,van,8,luggage_space;wifi;child_seat,Polonnaruwa,available,NC CAB-3412,2019,Toyota,Commuter
+SLV043,sedan,4,wifi;luggage_space,Wattala,available,WP CBG-5923,2022,Toyota,Camry
+SLV044,suv,5,luggage_space;child_seat;wifi,Vavuniya,on_trip,NP CAC-7834,2021,Mitsubishi,Pajero
+SLV045,sedan,4,pet_friendly,Piliyandala,available,WP CBH-1456,2020,Honda,Fit
+SLV046,luxury,4,wifi;child_seat,Colombo 10 (Maradana),available,WP CBI-8290,2023,Mercedes-Benz,S-Class
+SLV047,accessible,5,wheelchair_accessible;wifi;luggage_space,Gampaha,available,WP CBJ-4012,2022,Toyota,Hiace GL
+SLV048,van,7,luggage_space;child_seat;pet_friendly,Matale,available,CP CAD-6745,2020,Nissan,Urvan
+SLV049,sedan,4,luggage_space;wifi,Horana,available,WP CBK-9123,2021,Suzuki,Ciaz
+SLV050,suv,6,luggage_space;wifi;child_seat,Sigiriya,available,CP CAE-2890,2023,Ford,Everest

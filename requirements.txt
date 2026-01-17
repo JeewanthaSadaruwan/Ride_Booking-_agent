@@ -1,0 +1,28 @@
+# AWS Strands Agents with OpenAI support
+strands-agents[openai]>=1.22.0
+strands-agents-tools
+
+# OpenAI
+openai>=1.0.0
+
+# Configuration and utilities
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+pytz>=2023.3  # Timezone support for Sri Lanka
+
+# HTTP requests
+requests>=2.31.0
+
+# Console output formatting
+rich>=13.0.0
+
+# Web UI
+streamlit>=1.30.0
+folium>=0.15.0
+streamlit-folium>=0.15.0
+
+# Google Calendar API
+google-api-python-client>=2.0.0
+google-auth>=2.0.0
+google-auth-oauthlib>=1.0.0
+google-auth-httplib2>=0.3.0
