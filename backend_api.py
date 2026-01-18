@@ -21,9 +21,12 @@ from typing import Optional, List
 from datetime import datetime, timedelta
 import jwt
 import sqlite3
+import requests
 
 # Import your existing auth functions
 from auth.auth import signup_user, login_user, get_user_by_id
+from tools.geocode_location import geocode_location
+from tools.calculate_route import calculate_route
 from db.database import get_booking_by_id, cancel_booking as cancel_booking_db
 
 # Initialize FastAPI
@@ -79,6 +82,10 @@ class GeocodeRequest(BaseModel):
 class RouteRequest(BaseModel):
     pickup: LocationModel
     dropoff: LocationModel
+
+class ReverseGeocodeRequest(BaseModel):
+    lat: float
+    lon: float
 
 # ============================================================================
 # Authentication Helpers
@@ -270,6 +277,36 @@ async def chat(request: ChatRequest, user_id: str = Depends(verify_token)):
         
         # Format message with user context that agent can extract
         message_with_context = f"[User: {user_name} ({user_email}) | user_id: {user_id}]\n\n{request.message}"
+        if request.context:
+            pickup = request.context.get("pickup")
+            dropoff = request.context.get("dropoff")
+            context_lines = []
+            if pickup:
+                context_lines.append(
+                    f"[MapSelection] Pickup: {pickup.get('text', 'Pinned location')} "
+                    f"({pickup.get('lat')}, {pickup.get('lon')})"
+                )
+            if dropoff:
+                context_lines.append(
+                    f"[MapSelection] Dropoff: {dropoff.get('text', 'Pinned location')} "
+                    f"({dropoff.get('lat')}, {dropoff.get('lon')})"
+                )
+            if pickup and dropoff:
+                try:
+                    lat_diff = abs(float(pickup.get("lat")) - float(dropoff.get("lat")))
+                    lon_diff = abs(float(pickup.get("lon")) - float(dropoff.get("lon")))
+                    if lat_diff > 0.0005 or lon_diff > 0.0005:
+                        context_lines.append(
+                            "[MapSelection] Pickup and dropoff coordinates are different."
+                        )
+                except Exception:
+                    pass
+            if context_lines and "selected my" in request.message.lower():
+                context_lines.append(
+                    "[MapSelection] Reply should confirm locations recorded without repeating full addresses."
+                )
+            if context_lines:
+                message_with_context = f"{message_with_context}\n\n" + "\n".join(context_lines)
         
         print(f"Sending to agent with context: {message_with_context[:150]}...")
         
@@ -506,13 +543,17 @@ async def cancel_booking(booking_id: str, user_id: str = Depends(verify_token)):
 async def geocode(request: GeocodeRequest, user_id: str = Depends(verify_token)):
     """Geocode location text to coordinates"""
     try:
-        # TODO: Use your geocode_location tool
+        result = geocode_location(request.location)
+        if not result.get("success"):
+            message = result.get("message") or result.get("error") or "Failed to geocode location"
+            raise HTTPException(status_code=400, detail=message)
+
         return {
             "success": True,
             "data": {
                 "text": request.location,
-                "lat": 6.9271,
-                "lon": 79.8612
+                "lat": result["coordinates"]["latitude"],
+                "lon": result["coordinates"]["longitude"]
             }
         }
     except Exception as e:
@@ -522,16 +563,61 @@ async def geocode(request: GeocodeRequest, user_id: str = Depends(verify_token))
 async def route(request: RouteRequest, user_id: str = Depends(verify_token)):
     """Calculate route between two locations"""
     try:
-        # TODO: Use your calculate_route tool
+        result = calculate_route(
+            request.pickup.lat,
+            request.pickup.lon,
+            request.dropoff.lat,
+            request.dropoff.lon,
+            request.pickup.text,
+            request.dropoff.text
+        )
+
+        if not result.get("success"):
+            message = result.get("message") or result.get("error") or "Failed to calculate route"
+            raise HTTPException(status_code=400, detail=message)
+
         return {
             "success": True,
             "data": {
-                "distance": 116.5,
-                "duration": 200,
+                "distance": result["distance_km"],
+                "duration": result["duration_minutes"],
                 "polyline": [
                     [request.pickup.lat, request.pickup.lon],
                     [request.dropoff.lat, request.dropoff.lon]
                 ]
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/location/reverse")
+async def reverse_geocode(request: ReverseGeocodeRequest, user_id: str = Depends(verify_token)):
+    """Reverse geocode coordinates into a readable address"""
+    try:
+        url = "https://nominatim.openstreetmap.org/reverse"
+        params = {
+            "lat": request.lat,
+            "lon": request.lon,
+            "format": "json",
+            "zoom": 18,
+            "addressdetails": 1
+        }
+        headers = {
+            "User-Agent": "ride-booking-agent/1.0"
+        }
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        if response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Reverse geocoding failed")
+        data = response.json()
+        display_name = data.get("display_name")
+        if not display_name:
+            raise HTTPException(status_code=400, detail="No address found for location")
+        return {
+            "success": True,
+            "data": {
+                "text": display_name,
+                "lat": float(request.lat),
+                "lon": float(request.lon)
             }
         }
     except Exception as e:

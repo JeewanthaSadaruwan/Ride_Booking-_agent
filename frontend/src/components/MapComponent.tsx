@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Location, Route } from '@/types';
+import { cn } from '@/utils/helpers';
 
 // Fix for default marker icons in Leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -22,6 +23,8 @@ interface MapComponentProps {
   route: Route | null;
   onPickupMove?: (location: Location) => void;
   onDropoffMove?: (location: Location) => void;
+  isPicking?: boolean;
+  onMapSelect?: (lat: number, lon: number) => void;
 }
 
 export const MapComponent: React.FC<MapComponentProps> = ({
@@ -30,23 +33,26 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   route,
   onPickupMove,
   onDropoffMove,
+  isPicking,
+  onMapSelect,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
   const pickupMarkerRef = useRef<L.Marker | null>(null);
   const dropoffMarkerRef = useRef<L.Marker | null>(null);
   const routeLayerRef = useRef<L.Polyline | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const hasMountedRef = useRef(false);
 
   // Initialize map
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    mapRef.current = L.map(containerRef.current).setView([6.9271, 79.8612], 13); // Colombo
-
+    const map = L.map(containerRef.current).setView([6.9271, 79.8612], 13); // Colombo
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
       maxZoom: 19,
-    }).addTo(mapRef.current);
+    }).addTo(map);
+    mapRef.current = map;
 
     return () => {
       if (mapRef.current) {
@@ -55,6 +61,59 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       }
     };
   }, []);
+
+  // Recreate map on pick mode toggle (prevents blank tiles in some layouts)
+  useEffect(() => {
+    if (!containerRef.current || !mapRef.current) return;
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+
+    mapRef.current.remove();
+    mapRef.current = null;
+    pickupMarkerRef.current = null;
+    dropoffMarkerRef.current = null;
+    routeLayerRef.current = null;
+
+    const map = L.map(containerRef.current).setView([6.9271, 79.8612], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map);
+    mapRef.current = map;
+  }, [isPicking]);
+
+  useEffect(() => {
+    if (!mapRef.current || !onMapSelect) return;
+    const handleClick = (e: L.LeafletMouseEvent) => {
+      onMapSelect(e.latlng.lat, e.latlng.lng);
+    };
+    mapRef.current.on('click', handleClick);
+    return () => {
+      mapRef.current?.off('click', handleClick);
+    };
+  }, [onMapSelect]);
+
+  // Ensure tiles render correctly after layout changes
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const fast = window.setTimeout(() => {
+      mapRef.current?.invalidateSize();
+    }, 0);
+    const slow = window.setTimeout(() => {
+      mapRef.current?.invalidateSize();
+      const center = mapRef.current?.getCenter();
+      const zoom = mapRef.current?.getZoom();
+      if (center && typeof zoom === 'number') {
+        mapRef.current?.setView(center, zoom, { animate: false });
+      }
+    }, 150);
+    return () => {
+      window.clearTimeout(fast);
+      window.clearTimeout(slow);
+    };
+  }, [pickup, dropoff, route, isPicking]);
 
   // Update pickup marker
   useEffect(() => {
@@ -91,7 +150,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         });
       });
     }
-  }, [pickup, onPickupMove]);
+  }, [pickup, onPickupMove, isPicking]);
 
   // Update dropoff marker
   useEffect(() => {
@@ -128,7 +187,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         });
       });
     }
-  }, [dropoff, onDropoffMove]);
+  }, [dropoff, onDropoffMove, isPicking]);
 
   // Update route
   useEffect(() => {
@@ -164,11 +223,14 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     } else if (dropoff) {
       mapRef.current.setView([dropoff.lat, dropoff.lon], 13);
     }
-  }, [route, pickup, dropoff]);
+  }, [route, pickup, dropoff, isPicking]);
 
   return (
     <div className="w-full h-full rounded-lg overflow-hidden shadow-lg">
-      <div ref={containerRef} className="w-full h-full" />
+      <div
+        ref={containerRef}
+        className={cn('w-full h-full', isPicking ? 'cursor-crosshair' : '')}
+      />
     </div>
   );
 };

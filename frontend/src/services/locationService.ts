@@ -30,6 +30,21 @@ export const locationService = {
       throw new Error(handleApiError(error));
     }
   },
+
+  /**
+   * Reverse geocode coordinates into a readable address
+   */
+  async reverseGeocode(lat: number, lon: number): Promise<Location> {
+    try {
+      const response = await apiClient.post<ApiResponse<Location>>('/location/reverse', {
+        lat,
+        lon,
+      });
+      return response.data.data!;
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
 };
 
 export const vehicleService = {

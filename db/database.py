@@ -1,6 +1,7 @@
 """Database helper functions for vehicle dispatch system."""
 
 import sqlite3
+import re
 from typing import List, Dict, Optional
 
 DB_PATH = "vehicles.db"
@@ -9,6 +10,48 @@ DB_PATH = "vehicles.db"
 def get_db_connection():
     """Get a connection to the database."""
     return sqlite3.connect(DB_PATH)
+
+
+def _build_location_candidates(location: str) -> List[str]:
+    base = location.strip()
+    if not base:
+        return []
+
+    candidates = [base]
+    lowered = re.sub(r"\s+", " ", base.lower()).strip()
+
+    for suffix in [
+        "railway station",
+        "train station",
+        "bus stand",
+        "bus station",
+        "town center",
+        "city center",
+        "hospital",
+        "hotel",
+        "airport",
+        "junction",
+        "station",
+    ]:
+        if suffix in lowered:
+            trimmed = lowered.replace(suffix, "").strip(" ,")
+            if trimmed:
+                candidates.append(trimmed)
+
+    if "," in base:
+        first_part = base.split(",")[0].strip()
+        if first_part:
+            candidates.append(first_part)
+
+    # De-duplicate while preserving order
+    seen = set()
+    unique = []
+    for item in candidates:
+        key = item.lower()
+        if key not in seen:
+            seen.add(key)
+            unique.append(item)
+    return unique
 
 
 def get_available_vehicles(location: str = "", vehicle_type: str = "") -> List[Dict]:
@@ -29,18 +72,31 @@ def get_available_vehicles(location: str = "", vehicle_type: str = "") -> List[D
     query = "SELECT * FROM vehicles WHERE status = 'available'"
     params = []
     
-    if location:
-        query += " AND current_location LIKE ?"
-        params.append(f"%{location}%")
-    
     if vehicle_type:
         query += " AND type = ?"
         params.append(vehicle_type)
-    
+
+    if location:
+        candidates = _build_location_candidates(location)
+        for candidate in candidates:
+            cursor.execute(
+                f"{query} AND lower(current_location) LIKE ?",
+                params + [f"%{candidate.lower()}%"],
+            )
+            vehicles = [dict(row) for row in cursor.fetchall()]
+            if vehicles:
+                conn.close()
+                return vehicles
+
+        # Fallback: no location match, return all available (with vehicle_type filter)
+        cursor.execute(query, params)
+        vehicles = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return vehicles
+
     cursor.execute(query, params)
     vehicles = [dict(row) for row in cursor.fetchall()]
     conn.close()
-    
     return vehicles
 
 
