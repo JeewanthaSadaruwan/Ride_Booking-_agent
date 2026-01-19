@@ -1,8 +1,11 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 
+// Use environment variable for API URL, fallback to /api for local dev with proxy
+const apiBaseURL = import.meta.env.VITE_API_URL || '/api';
+
 // Create axios instance with default config
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: '/api', // Proxy configured in vite.config.ts
+  baseURL: apiBaseURL,
   headers: {
     'Content-Type': 'application/json',
   },
