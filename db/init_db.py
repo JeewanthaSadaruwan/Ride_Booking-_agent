@@ -1,31 +1,36 @@
 """Initialize the vehicle dispatch database with tables and mock data."""
 
-import sqlite3
+import psycopg2
 import csv
 from pathlib import Path
+from config.settings import DATABASE_URL
 
-DB_PATH = "vehicles.db"
 CSV_DIR = Path(__file__).parent.parent / "csv"
 
 
 def init_database():
     """Create database tables and populate with data from CSV files."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = psycopg2.connect(DATABASE_URL)
     cursor = conn.cursor()
     
     # Check and add missing columns (migration)
     def add_column_if_not_exists(table_name, column_name, column_type):
         """Add a column to a table if it doesn't exist."""
-        cursor.execute(f"PRAGMA table_info({table_name})")
-        columns = [row[1] for row in cursor.fetchall()]
-        if column_name not in columns:
-            try:
+        try:
+            cursor.execute(f"""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name=%s AND column_name=%s
+            """, (table_name, column_name))
+            
+            if not cursor.fetchone():
                 cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
                 conn.commit()
                 print(f"✅ Added column '{column_name}' to table '{table_name}'")
-            except sqlite3.OperationalError as e:
-                # Table might not exist yet, that's okay
-                pass
+        except psycopg2.Error as e:
+            # Table might not exist yet, that's okay
+            conn.rollback()
+            pass
     
     # Create users table
     cursor.execute("""
@@ -152,13 +157,14 @@ def init_database():
             cursor.executemany("""
                 INSERT INTO vehicles (vehicle_id, type, capacity, features, current_location, 
                                     status, license_plate, year, make, model)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, vehicles)
             print(f"   ✅ Loaded {len(vehicles)} vehicles from CSV")
     
     conn.commit()
+    cursor.close()
     conn.close()
-    print(f"\n✅ Database initialized successfully at {DB_PATH}")
+    print(f"\n✅ Database initialized successfully!")
 
 
 if __name__ == "__main__":

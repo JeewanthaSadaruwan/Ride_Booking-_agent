@@ -1,13 +1,13 @@
 """User authentication module for ride booking system."""
 
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import hashlib
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Tuple
 import re
-
-DB_PATH = "vehicles.db"
+from config.settings import DATABASE_URL
 
 
 def hash_password(password: str, salt: str = None) -> Tuple[str, str]:
@@ -87,12 +87,13 @@ def signup_user(email: str, password: str, full_name: str, phone: str) -> Dict:
         return {"success": False, "message": "Invalid phone number format (use +94XXXXXXXXX or 0XXXXXXXXX)"}
     
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
         
         # Check if email already exists
-        cursor.execute("SELECT user_id FROM users WHERE email = ?", (email.lower(),))
+        cursor.execute("SELECT user_id FROM users WHERE email = %s", (email.lower(),))
         if cursor.fetchone():
+            cursor.close()
             conn.close()
             return {"success": False, "message": "Email already registered"}
         
@@ -106,11 +107,12 @@ def signup_user(email: str, password: str, full_name: str, phone: str) -> Dict:
         # Insert user
         cursor.execute("""
             INSERT INTO users (user_id, email, password_hash, salt, full_name, phone, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         """, (user_id, email.lower(), hashed_pwd, salt, full_name, phone, 
               datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         
         conn.commit()
+        cursor.close()
         conn.close()
         
         return {
@@ -135,17 +137,17 @@ def login_user(email: str, password: str) -> Dict:
         Dict with success status and user info or error message
     """
     try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
         # Get user by email
         cursor.execute("""
             SELECT user_id, email, password_hash, salt, full_name, phone, created_at
-            FROM users WHERE email = ?
+            FROM users WHERE email = %s
         """, (email.lower(),))
         
         user = cursor.fetchone()
+        cursor.close()
         conn.close()
         
         if not user:
@@ -177,14 +179,15 @@ def login_user(email: str, password: str) -> Dict:
 def update_last_login(user_id: str):
     """Update user's last login timestamp."""
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
         
         cursor.execute("""
-            UPDATE users SET last_login = ? WHERE user_id = ?
+            UPDATE users SET last_login = %s WHERE user_id = %s
         """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), user_id))
         
         conn.commit()
+        cursor.close()
         conn.close()
     except:
         pass  # Silent fail - not critical
@@ -193,16 +196,16 @@ def update_last_login(user_id: str):
 def get_user_by_id(user_id: str) -> Optional[Dict]:
     """Get user information by user ID."""
     try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
         cursor.execute("""
             SELECT user_id, email, full_name, phone, created_at, last_login
-            FROM users WHERE user_id = ?
+            FROM users WHERE user_id = %s
         """, (user_id,))
         
         user = cursor.fetchone()
+        cursor.close()
         conn.close()
         
         return dict(user) if user else None
@@ -224,30 +227,31 @@ def update_user_profile(user_id: str, full_name: str = None, phone: str = None) 
         Dict with success status and message
     """
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
         
         updates = []
         params = []
         
         if full_name:
-            updates.append("full_name = ?")
+            updates.append("full_name = %s")
             params.append(full_name)
         
         if phone:
             if not validate_phone(phone):
                 return {"success": False, "message": "Invalid phone number format"}
-            updates.append("phone = ?")
+            updates.append("phone = %s")
             params.append(phone)
         
         if not updates:
             return {"success": False, "message": "No updates provided"}
         
         params.append(user_id)
-        query = f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?"
+        query = f"UPDATE users SET {', '.join(updates)} WHERE user_id = %s"
         
         cursor.execute(query, params)
         conn.commit()
+        cursor.close()
         conn.close()
         
         return {"success": True, "message": "Profile updated successfully"}
@@ -270,25 +274,27 @@ def change_password(user_id: str, old_password: str, new_password: str) -> Dict:
     """
     try:
         # Verify old password
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
         cursor.execute("""
-            SELECT password_hash, salt FROM users WHERE user_id = ?
+            SELECT password_hash, salt FROM users WHERE user_id = %s
         """, (user_id,))
         
         user = cursor.fetchone()
         if not user:
+            cursor.close()
             conn.close()
             return {"success": False, "message": "User not found"}
         
         if not verify_password(old_password, user['password_hash'], user['salt']):
+            cursor.close()
             conn.close()
             return {"success": False, "message": "Current password is incorrect"}
         
         # Validate new password
         if len(new_password) < 6:
+            cursor.close()
             conn.close()
             return {"success": False, "message": "New password must be at least 6 characters"}
         
@@ -297,10 +303,11 @@ def change_password(user_id: str, old_password: str, new_password: str) -> Dict:
         
         # Update password
         cursor.execute("""
-            UPDATE users SET password_hash = ?, salt = ? WHERE user_id = ?
+            UPDATE users SET password_hash = %s, salt = %s WHERE user_id = %s
         """, (new_hash, new_salt, user_id))
         
         conn.commit()
+        cursor.close()
         conn.close()
         
         return {"success": True, "message": "Password changed successfully"}

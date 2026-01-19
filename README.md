@@ -2,6 +2,8 @@
 
 A complete ride booking application for Sri Lanka using OpenAI GPT-4o and AWS Strands. Book rides from anywhere to anywhere with real-time vehicle availability, route calculation, and cost estimation by simply specifying your pickup and dropoff locations.
 
+**⚠️ IMPORTANT**: This application now uses **PostgreSQL** instead of SQLite for cloud deployment compatibility. See [POSTGRESQL_MIGRATION.md](POSTGRESQL_MIGRATION.md) for setup instructions.
+
 ---
 
 ## Features
@@ -12,24 +14,59 @@ A complete ride booking application for Sri Lanka using OpenAI GPT-4o and AWS St
 - **Dynamic Pricing**: Distance and time-based cost calculation
 - **Calendar Integration**: Auto-booking with Google Calendar
 - **Modern UI**: Streamlit-based responsive interface
+- **Cloud-Ready**: PostgreSQL database for scalable deployment
 
 ---
 
 ## Quick Start
 
-### 1. Install Dependencies
+### 1. Install PostgreSQL
+
+**Ubuntu/Debian:**
 ```bash
-cd /home/jeewanthas/Desktop/vehicle-dispatch-agent
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql
+```
+
+**macOS:**
+```bash
+brew install postgresql@15
+brew services start postgresql@15
+```
+
+### 2. Automated Setup (Recommended)
+```bash
+./setup_postgresql.sh
+```
+
+This script will:
+- Create the database
+- Generate `.env` configuration
+- Install Python dependencies
+- Initialize database tables
+
+### 3. Manual Setup (Alternative)
+
+**Install Dependencies:**
+```bash
 pip install -r requirements.txt
 ```
 
-### 2. Set Up Environment Variables
+**Configure Environment:**
 Create a `.env` file:
 ```env
+DATABASE_URL=postgresql://user:password@localhost:5432/ride_booking
 OPENAI_API_KEY=your_openai_api_key_here
+GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
 ```
 
-### 3. Set Up Google Calendar (Optional)
+**Initialize Database:**
+```bash
+python -m db.init_db
+```
+
+### 4. Set Up Google Calendar (Optional)
 For calendar integration features:
 
 1. **Enable Google Calendar API**:
@@ -45,7 +82,7 @@ For calendar integration features:
    ```
    This will open your browser to authorize access and save `token.json`
 
-### 4. Run the Application
+### 5. Run the Application
 ```bash
 python3 -m streamlit run app.py --server.port 8501
 ```
@@ -103,18 +140,51 @@ Agent confirms and:
 ### Tech Stack
 - **Frontend**: Streamlit
 - **AI Agent**: AWS Strands with OpenAI GPT-4o
-- **Database**: SQLite (vehicles, trips, dispatches)
+- **Database**: PostgreSQL (production-ready, scalable)
 - **Geocoding**: Nominatim API (OpenStreetMap)
 - **Routing**: OpenStreetMap Routing Service
 - **Calendar**: Google Calendar API
+
+---
+
+## Deployment
+
+This application is designed for cloud deployment with PostgreSQL. See the comprehensive [PostgreSQL Migration Guide](POSTGRESQL_MIGRATION.md) for detailed instructions.
+
+### Quick Deploy Options
+
+**Railway (Recommended - Easiest):**
+1. Sign up at [railway.app](https://railway.app/)
+2. Create PostgreSQL database
+3. Deploy from GitHub
+4. Set environment variables (DATABASE_URL, OPENAI_API_KEY, GOOGLE_MAPS_API_KEY)
+5. Run `python -m db.init_db` in console
+
+**Render:**
+1. Create PostgreSQL database at [render.com](https://render.com/)
+2. Create Web Service from GitHub
+3. Link database and set environment variables
+4. Deploy automatically
+
+**Other Platforms:**
+- AWS (RDS + Elastic Beanstalk/ECS)
+- Heroku
+- DigitalOcean App Platform
+- Google Cloud Platform
+
+See [POSTGRESQL_MIGRATION.md](POSTGRESQL_MIGRATION.md) for platform-specific instructions.
+
+---
 
 ### Project Structure
 ```
 ride-booking-agent/
 ├── app.py                      # Main Streamlit application
 ├── requirements.txt            # Python dependencies
-├── .env                        # Environment variables
-├── vehicles.db                 # SQLite database
+├── .env                        # Environment variables (not in git)
+├── .env.example                # Environment template
+├── setup_postgresql.sh         # Automated database setup
+├── POSTGRESQL_MIGRATION.md     # Deployment guide
 ├── run_app.sh                  # Startup script
 ├── google_calendar_auth.py     # Google Calendar authentication
 ├── credentials.json            # Google OAuth credentials (not in git)

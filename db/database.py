@@ -1,15 +1,15 @@
 """Database helper functions for vehicle dispatch system."""
 
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import re
 from typing import List, Dict, Optional
-
-DB_PATH = "vehicles.db"
+from config.settings import DATABASE_URL
 
 
 def get_db_connection():
-    """Get a connection to the database."""
-    return sqlite3.connect(DB_PATH)
+    """Get a connection to the PostgreSQL database."""
+    return psycopg2.connect(DATABASE_URL)
 
 
 def _build_location_candidates(location: str) -> List[str]:
@@ -66,36 +66,38 @@ def get_available_vehicles(location: str = "", vehicle_type: str = "") -> List[D
         List of vehicle dictionaries
     """
     conn = get_db_connection()
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     query = "SELECT * FROM vehicles WHERE status = 'available'"
     params = []
     
     if vehicle_type:
-        query += " AND type = ?"
+        query += " AND type = %s"
         params.append(vehicle_type)
 
     if location:
         candidates = _build_location_candidates(location)
         for candidate in candidates:
             cursor.execute(
-                f"{query} AND lower(current_location) LIKE ?",
+                f"{query} AND lower(current_location) LIKE %s",
                 params + [f"%{candidate.lower()}%"],
             )
             vehicles = [dict(row) for row in cursor.fetchall()]
             if vehicles:
+                cursor.close()
                 conn.close()
                 return vehicles
 
         # Fallback: no location match, return all available (with vehicle_type filter)
         cursor.execute(query, params)
         vehicles = [dict(row) for row in cursor.fetchall()]
+        cursor.close()
         conn.close()
         return vehicles
 
     cursor.execute(query, params)
     vehicles = [dict(row) for row in cursor.fetchall()]
+    cursor.close()
     conn.close()
     return vehicles
 
@@ -103,11 +105,11 @@ def get_available_vehicles(location: str = "", vehicle_type: str = "") -> List[D
 def get_vehicle_by_id(vehicle_id: str) -> Optional[Dict]:
     """Get a specific vehicle by ID."""
     conn = get_db_connection()
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
-    cursor.execute("SELECT * FROM vehicles WHERE vehicle_id = ?", (vehicle_id,))
+    cursor.execute("SELECT * FROM vehicles WHERE vehicle_id = %s", (vehicle_id,))
     row = cursor.fetchone()
+    cursor.close()
     conn.close()
     
     return dict(row) if row else None
@@ -127,11 +129,12 @@ def create_trip(pickup: str, dropoff: str, passengers: int,
         INSERT INTO trips (trip_id, user_id, pickup_location, dropoff_location, 
                           passenger_count, requested_time, special_requirements, 
                           status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s)
     """, (trip_id, user_id, pickup, dropoff, passengers, requested_time, 
           requirements, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     
     conn.commit()
+    cursor.close()
     conn.close()
     
     return trip_id
@@ -154,22 +157,23 @@ def create_dispatch(vehicle_id: str, trip_id: str, driver_name: str,
     cursor.execute("""
         INSERT INTO dispatches (dispatch_id, vehicle_id, trip_id, user_id, driver_name,
                                driver_contact, dispatch_time, status, estimated_arrival)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'dispatched', ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, 'dispatched', %s)
     """, (dispatch_id, vehicle_id, trip_id, user_id, driver_name, driver_contact,
           datetime.now().strftime("%Y-%m-%d %H:%M:%S"), estimated_arrival))
     
     # Update vehicle status to on_trip
     cursor.execute("""
-        UPDATE vehicles SET status = 'on_trip' WHERE vehicle_id = ?
+        UPDATE vehicles SET status = 'on_trip' WHERE vehicle_id = %s
     """, (vehicle_id,))
     
     # Update trip status only if trip_id exists (backward compatibility)
     if trip_id:
         cursor.execute("""
-            UPDATE trips SET status = 'dispatched' WHERE trip_id = ?
+            UPDATE trips SET status = 'dispatched' WHERE trip_id = %s
         """, (trip_id,))
     
     conn.commit()
+    cursor.close()
     conn.close()
     
     return dispatch_id
@@ -178,18 +182,18 @@ def create_dispatch(vehicle_id: str, trip_id: str, driver_name: str,
 def get_dispatch_by_id(dispatch_id: str) -> Optional[Dict]:
     """Get dispatch details by ID."""
     conn = get_db_connection()
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     cursor.execute("""
         SELECT d.*, v.make, v.model, v.license_plate, t.pickup_location, t.dropoff_location
         FROM dispatches d
         LEFT JOIN vehicles v ON d.vehicle_id = v.vehicle_id
         LEFT JOIN trips t ON d.trip_id = t.trip_id
-        WHERE d.dispatch_id = ?
+        WHERE d.dispatch_id = %s
     """, (dispatch_id,))
     
     row = cursor.fetchone()
+    cursor.close()
     conn.close()
     
     return dict(row) if row else None
@@ -198,8 +202,7 @@ def get_dispatch_by_id(dispatch_id: str) -> Optional[Dict]:
 def get_all_dispatches(status: str = None) -> List[Dict]:
     """Get all dispatches, optionally filtered by status."""
     conn = get_db_connection()
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     query = """
         SELECT d.*, v.make, v.model, v.license_plate, v.type,
@@ -210,12 +213,13 @@ def get_all_dispatches(status: str = None) -> List[Dict]:
     """
     
     if status:
-        query += " WHERE d.status = ?"
+        query += " WHERE d.status = %s"
         cursor.execute(query, (status,))
     else:
         cursor.execute(query)
     
     dispatches = [dict(row) for row in cursor.fetchall()]
+    cursor.close()
     conn.close()
     
     return dispatches
@@ -257,13 +261,14 @@ def create_booking(user_id: str, vehicle_id: str, pickup_location: str,
                             dropoff_location, pickup_time, passenger_count,
                             distance_km, duration_minutes, estimated_cost,
                             special_requirements, status, created_at, calendar_event_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'confirmed', %s, %s)
     """, (booking_id, user_id, vehicle_id, pickup_location, dropoff_location,
           pickup_time, passenger_count, distance_km, duration_minutes,
           estimated_cost, special_requirements, 
           datetime.now().strftime("%Y-%m-%d %H:%M:%S"), calendar_event_id))
     
     conn.commit()
+    cursor.close()
     conn.close()
     
     return booking_id
@@ -282,27 +287,27 @@ def get_user_bookings(user_id: str, status: str = None, limit: int = 10) -> List
         List of booking dictionaries
     """
     conn = get_db_connection()
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     query = """
         SELECT b.*, v.make, v.model, v.type, v.license_plate
         FROM bookings b
         LEFT JOIN vehicles v ON b.vehicle_id = v.vehicle_id
-        WHERE b.user_id = ?
+        WHERE b.user_id = %s
     """
     
     params = [user_id]
     
     if status:
-        query += " AND b.status = ?"
+        query += " AND b.status = %s"
         params.append(status)
     
-    query += " ORDER BY b.created_at DESC LIMIT ?"
+    query += " ORDER BY b.created_at DESC LIMIT %s"
     params.append(limit)
     
     cursor.execute(query, params)
     bookings = [dict(row) for row in cursor.fetchall()]
+    cursor.close()
     conn.close()
     
     return bookings
@@ -311,8 +316,7 @@ def get_user_bookings(user_id: str, status: str = None, limit: int = 10) -> List
 def get_booking_by_id(booking_id: str) -> Optional[Dict]:
     """Get a specific booking by ID."""
     conn = get_db_connection()
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     cursor.execute("""
         SELECT b.*, v.make, v.model, v.type, v.license_plate, v.features,
@@ -320,10 +324,11 @@ def get_booking_by_id(booking_id: str) -> Optional[Dict]:
         FROM bookings b
         LEFT JOIN vehicles v ON b.vehicle_id = v.vehicle_id
         LEFT JOIN users u ON b.user_id = u.user_id
-        WHERE b.booking_id = ?
+        WHERE b.booking_id = %s
     """, (booking_id,))
     
     row = cursor.fetchone()
+    cursor.close()
     conn.close()
     
     return dict(row) if row else None
@@ -336,10 +341,11 @@ def cancel_booking(booking_id: str) -> bool:
         cursor = conn.cursor()
         
         cursor.execute("""
-            UPDATE bookings SET status = 'cancelled' WHERE booking_id = ?
+            UPDATE bookings SET status = 'cancelled' WHERE booking_id = %s
         """, (booking_id,))
         
         conn.commit()
+        cursor.close()
         conn.close()
         return True
     except:
@@ -349,33 +355,33 @@ def cancel_booking(booking_id: str) -> bool:
 def get_user_stats(user_id: str) -> Dict:
     """Get user's booking statistics."""
     conn = get_db_connection()
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     # Total bookings
     cursor.execute("""
-        SELECT COUNT(*) as total FROM bookings WHERE user_id = ?
+        SELECT COUNT(*) as total FROM bookings WHERE user_id = %s
     """, (user_id,))
     total = cursor.fetchone()['total']
     
     # Completed bookings
     cursor.execute("""
         SELECT COUNT(*) as completed FROM bookings 
-        WHERE user_id = ? AND status = 'completed'
+        WHERE user_id = %s AND status = 'completed'
     """, (user_id,))
     completed = cursor.fetchone()['completed']
     
     # Total spent
     cursor.execute("""
         SELECT SUM(estimated_cost) as total_spent FROM bookings 
-        WHERE user_id = ? AND status IN ('completed', 'confirmed')
+        WHERE user_id = %s AND status IN ('completed', 'confirmed')
     """, (user_id,))
     total_spent = cursor.fetchone()['total_spent'] or 0
     
+    cursor.close()
     conn.close()
     
     return {
         "total_bookings": total,
         "completed_bookings": completed,
-        "total_spent": round(total_spent, 2)
+        "total_spent": round(float(total_spent), 2)
     }

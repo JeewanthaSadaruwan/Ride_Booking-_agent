@@ -20,7 +20,8 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime, timedelta
 import jwt
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import requests
 
 # Import your existing auth functions
@@ -28,6 +29,7 @@ from auth.auth import signup_user, login_user, get_user_by_id
 from tools.geocode_location import geocode_location
 from tools.calculate_route import calculate_route
 from db.database import get_booking_by_id, cancel_booking as cancel_booking_db
+from config.settings import DATABASE_URL
 
 # Initialize FastAPI
 app = FastAPI(title="Ride Booking Agent API", version="1.0.0")
@@ -45,7 +47,6 @@ app.add_middleware(
 security = HTTPBearer()
 SECRET_KEY = "your-secret-key-change-this-in-production-2026"  # Change in production
 ALGORITHM = "HS256"
-DB_PATH = "vehicles.db"
 
 # ============================================================================
 # Request/Response Models
@@ -183,13 +184,14 @@ async def signup(request: SignupRequest):
             raise HTTPException(status_code=400, detail=result["message"])
         
         # Get the newly created user
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT user_id, email, full_name, phone 
-            FROM users WHERE user_id = ?
+            FROM users WHERE user_id = %s
         """, (result["user_id"],))
         user_data = cursor.fetchone()
+        cursor.close()
         conn.close()
         
         # Create JWT token
@@ -216,13 +218,14 @@ async def signup(request: SignupRequest):
 async def get_profile(user_id: str = Depends(verify_token)):
     """Get current user profile"""
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT user_id, email, full_name, phone 
-            FROM users WHERE user_id = ?
+            FROM users WHERE user_id = %s
         """, (user_id,))
         user_data = cursor.fetchone()
+        cursor.close()
         conn.close()
         
         if not user_data:
@@ -263,12 +266,13 @@ async def chat(request: ChatRequest, user_id: str = Depends(verify_token)):
         print(f"Chat request from user {user_id}: {request.message}")
         
         # Get user details for context
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT email, full_name FROM users WHERE user_id = ?
+            SELECT email, full_name FROM users WHERE user_id = %s
         """, (user_id,))
         user_data = cursor.fetchone()
+        cursor.close()
         conn.close()
         
         # Add user context to message so agent knows who is making the request
@@ -340,12 +344,16 @@ async def chat(request: ChatRequest, user_id: str = Depends(verify_token)):
 async def get_my_bookings(user_id: str = Depends(verify_token)):
     """Get all bookings for current user"""
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
         # Check if vehicle_type column exists
-        cursor.execute("PRAGMA table_info(bookings)")
-        columns = [col[1] for col in cursor.fetchall()]
+        cursor.execute("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name='bookings'
+        """)
+        columns = [col['column_name'] for col in cursor.fetchall()]
         
         # Use pickup_time instead of scheduled_time
         if 'vehicle_type' in columns:
@@ -353,7 +361,7 @@ async def get_my_bookings(user_id: str = Depends(verify_token)):
                 SELECT booking_id, user_id, vehicle_id, pickup_location, dropoff_location,
                        vehicle_type, status, pickup_time, estimated_cost,
                        distance_km, duration_minutes, created_at, passenger_count
-                FROM bookings WHERE user_id = ?
+                FROM bookings WHERE user_id = %s
                 ORDER BY created_at DESC
             """, (user_id,))
         else:
@@ -361,7 +369,7 @@ async def get_my_bookings(user_id: str = Depends(verify_token)):
                 SELECT booking_id, user_id, vehicle_id, pickup_location, dropoff_location,
                        status, pickup_time, estimated_cost,
                        distance_km, duration_minutes, created_at, passenger_count
-                FROM bookings WHERE user_id = ?
+                FROM bookings WHERE user_id = %s
                 ORDER BY created_at DESC
             """, (user_id,))
         
@@ -405,8 +413,9 @@ async def get_my_bookings(user_id: str = Depends(verify_token)):
                 # Get vehicle info from vehicles table if not cached
                 if vehicle_id not in vehicle_cache:
                     cursor2 = conn.cursor()
-                    cursor2.execute("SELECT type, make, model FROM vehicles WHERE vehicle_id = ?", (vehicle_id,))
+                    cursor2.execute("SELECT type, make, model FROM vehicles WHERE vehicle_id = %s", (vehicle_id,))
                     vehicle_data = cursor2.fetchone()
+                    cursor2.close()
                     if vehicle_data:
                         vehicle_cache[vehicle_id] = {
                             "type": vehicle_data[0],
@@ -441,6 +450,7 @@ async def get_my_bookings(user_id: str = Depends(verify_token)):
                     "updatedAt": b[10] or datetime.now().isoformat()
                 })
         
+        cursor.close()
         conn.close()
         
         return {
@@ -677,5 +687,14 @@ async def recommend_vehicles(distance: float, user_id: str = Depends(verify_toke
 # ============================================================================
 
 if __name__ == "__main__":
+    import os
     import uvicorn
-    uvicorn.run("backend_api:app", host="0.0.0.0", port=8000, reload=True)
+
+    port = int(os.environ.get("PORT", 8080))
+
+    uvicorn.run(
+        "backend_api:app",
+        host="0.0.0.0",
+        port=port,
+        reload=False
+    )
