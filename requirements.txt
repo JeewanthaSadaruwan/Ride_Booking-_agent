@@ -1,7 +1,6 @@
 strands-agents[openai]==1.22.0
 strands-agents-tools==0.2.19
 
-openai==1.6.1
 python-dotenv==1.0.1
 pydantic==2.6.4
 pytz==2025.2
