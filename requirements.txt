@@ -1,5 +1,5 @@
 # AWS Strands Agents with OpenAI support
-strands-agents[openai]>=1.22.0
+git+https://github.com/wso2/strands-agents.git@v1.22.0
 strands-agents-tools
 
 # OpenAI
