@@ -2,7 +2,7 @@ strands-agents[openai]==1.22.0
 strands-agents-tools==0.2.19
 
 python-dotenv==1.0.1
-pydantic==2.6.4
+pydantic>=2.11.0,<3.0.0
 pytz==2025.2
 requests==2.32.3
 rich>=14.0.0
