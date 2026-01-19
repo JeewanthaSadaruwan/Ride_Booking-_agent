@@ -102,7 +102,11 @@ export const BookRidePage: React.FC = () => {
     });
 
     // Lightweight map preview for "from X to Y" messages
-    if (!pickup && !dropoff) {
+    // Skip if multiple bookings are detected - trying to show multiple locations causes conflicts
+    // Keywords that indicate multiple bookings: numbered lists (1., 2.), sequencing words (first, then, also)
+    const hasMultipleBookings = /(\d+\.|first|then|also|finally|second|third|fourth|next)/i.test(message);
+    
+    if (!pickup && !dropoff && !hasMultipleBookings) {
       const match = message.match(
         /from\s+(.+?)\s+to\s+(.+?)(?:\s+(?:at|on|tomorrow|today|for|with|by|around|before|after)\b|[.?!]|$)/i
       );
