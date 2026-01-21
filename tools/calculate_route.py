@@ -5,6 +5,7 @@ import time
 from strands import tool
 
 
+
 @tool
 def calculate_route(
     origin_lat: float,
@@ -159,3 +160,5 @@ def _calculate_haversine_fallback(
         "source": "Haversine formula (fallback)",
         "note": "Routing service unavailable. Using straight-line distance estimate."
     }
+
+
